@@ -1,0 +1,924 @@
+zabbix_export:
+  version: '7.2'
+  templates:
+    - uuid: 4e3d9a1994144fc2a823952cf2a4a42a
+      template: Caddy
+      name: Caddy
+      items:
+        - uuid: 08844487cb4b4616878d512a2d95df2a
+          name: go_goroutines
+          type: DEPENDENT
+          key: go_goroutines
+          description: 'Number of goroutines that currently exist.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - go_goroutines
+                - value
+                - ''
+          master_item:
+            key: raw
+          tags:
+            - tag: type
+              value: system
+        - uuid: c2b0584bc7514055997babccba79c823
+          name: go_info
+          type: DEPENDENT
+          key: go_info
+          history: 90d
+          value_type: TEXT
+          description: 'Information about the Go environment.'
+          preprocessing:
+            - type: PROMETHEUS_TO_JSON
+              parameters:
+                - 'go_info{version=~".*"}'
+            - type: JAVASCRIPT
+              parameters:
+                - 'return JSON.parse(value)[0].labels.version;'
+            - type: DISCARD_UNCHANGED
+          master_item:
+            key: raw
+          tags:
+            - tag: type
+              value: system
+            - tag: type
+              value: version
+        - uuid: ba4fd0ce58f9409aa83540fb95a602c4
+          name: go_memstats_alloc_bytes
+          type: DEPENDENT
+          key: go_memstats_alloc_bytes
+          units: B
+          description: 'Number of bytes allocated and still in use.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - go_memstats_alloc_bytes
+                - value
+                - ''
+          master_item:
+            key: raw
+          tags:
+            - tag: type
+              value: memory
+            - tag: type
+              value: system
+        - uuid: fdb389b46b574a8dbbca5b22c637aed7
+          name: go_memstats_sys_bytes
+          type: DEPENDENT
+          key: go_memstats_sys_bytes
+          units: B
+          description: 'Number of bytes obtained from system.'
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - go_memstats_sys_bytes
+                - value
+                - ''
+          master_item:
+            key: raw
+          tags:
+            - tag: type
+              value: memory
+            - tag: type
+              value: system
+        - uuid: 3a4fd0a6c17a4b2b9e78853f486d31e9
+          name: 'metrics collector'
+          type: HTTP_AGENT
+          key: raw
+          history: '0'
+          value_type: TEXT
+          url: '{$CADDY.HOST}:{$CADDY.PORT}{$CADDY.PATH}'
+          tags:
+            - tag: type
+              value: raw
+        - uuid: b095948e92124fc5b6868e31573458d8
+          name: template_upstream_count
+          type: DEPENDENT
+          key: template_upstream_count
+          description: 'Amount of upstreams.'
+          preprocessing:
+            - type: PROMETHEUS_TO_JSON
+              parameters:
+                - 'caddy_reverse_proxy_upstreams_healthy{upstream=~".*"}'
+            - type: JAVASCRIPT
+              parameters:
+                - 'return JSON.parse(value).length || 0;'
+            - type: DISCARD_UNCHANGED
+          master_item:
+            key: raw
+          tags:
+            - tag: type
+              value: calculated
+            - tag: type
+              value: count
+            - tag: type
+              value: upstream
+      discovery_rules:
+        - uuid: db0bc9e2b73b4302aa0ee62e7379991e
+          name: caddy_admin_http_requests_total
+          type: DEPENDENT
+          key: caddy_admin_http_requests_total
+          lifetime_type: DELETE_IMMEDIATELY
+          item_prototypes:
+            - uuid: 5275a1847cfa44b0a45cf9a161598c18
+              name: 'count {#HANDLER} {#METHOD} {#CODE} admin api requests on {#PATH}'
+              type: DEPENDENT
+              key: 'caddy_admin_http_requests_total[{#CODE}_{#HANDLER}_{#METHOD}_{#PATH}]'
+              value_type: FLOAT
+              units: req
+              description: '{#HELP}'
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - '{#METRIC}{code="{#CODE}",handler="{#HANDLER}",method="{#METHOD}",path="{#PATH}"}'
+                    - value
+                    - ''
+                - type: SIMPLE_CHANGE
+                - type: DISCARD_UNCHANGED
+              master_item:
+                key: raw
+              tags:
+                - tag: code
+                  value: '{#CODE}'
+                - tag: handler
+                  value: '{#HANDLER}'
+                - tag: method
+                  value: '{#METHOD}'
+                - tag: path
+                  value: '{#PATH}'
+                - tag: type
+                  value: count
+          master_item:
+            key: raw
+          lld_macro_paths:
+            - lld_macro: '{#CODE}'
+              path: '$.labels[''code'']'
+            - lld_macro: '{#HANDLER}'
+              path: '$.labels[''handler'']'
+            - lld_macro: '{#HELP}'
+              path: '$[''help'']'
+            - lld_macro: '{#METHOD}'
+              path: '$.labels[''method'']'
+            - lld_macro: '{#METRIC}'
+              path: '$[''name'']'
+            - lld_macro: '{#PATH}'
+              path: '$.labels[''path'']'
+          preprocessing:
+            - type: PROMETHEUS_TO_JSON
+              parameters:
+                - 'caddy_admin_http_requests_total{code=~".*",handler=~".*",method=~".*",path=~".*"}'
+        - uuid: 6309b2085bf2435f9fec9af292dd1893
+          name: caddy_admin_http_request_errors_total
+          type: DEPENDENT
+          key: caddy_admin_http_request_errors_total
+          lifetime_type: DELETE_IMMEDIATELY
+          item_prototypes:
+            - uuid: 98759983aeb04b58b32dec639aa71b58
+              name: 'count {#HANDLER} {#METHOD} admin api errors on {#PATH}'
+              type: DEPENDENT
+              key: 'caddy_admin_http_request_errors_total[{#HANDLER}_{#METHOD}_{#PATH}]'
+              units: req
+              description: |
+                {#HELP}
+                
+                A counter of the number of errors encountered in admin endpoints, including modules in the admin.api.* namespace.
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - '{#METRIC}{handler="{#HANDLER}",method="{#METHOD}",path="{#PATH}"}'
+                    - value
+                    - ''
+                - type: SIMPLE_CHANGE
+                - type: DISCARD_UNCHANGED
+              master_item:
+                key: raw
+              tags:
+                - tag: handler
+                  value: '{#HANDLER}'
+                - tag: method
+                  value: '{#METHOD}'
+                - tag: path
+                  value: '{#PATH}'
+                - tag: type
+                  value: count
+                - tag: type
+                  value: error
+          master_item:
+            key: raw
+          lld_macro_paths:
+            - lld_macro: '{#HANDLER}'
+              path: '$.labels[''handler'']'
+            - lld_macro: '{#HELP}'
+              path: '$[''help'']'
+            - lld_macro: '{#METHOD}'
+              path: '$.labels[''method'']'
+            - lld_macro: '{#METRIC}'
+              path: '$[''name'']'
+            - lld_macro: '{#PATH}'
+              path: '$.labels[''path'']'
+          preprocessing:
+            - type: PROMETHEUS_TO_JSON
+              parameters:
+                - 'caddy_admin_http_request_errors_total{handler=~".*",method=~".*",path=~".*"}'
+        - uuid: d9e622383be54e15a4323ee7df4d7fea
+          name: caddy_http_requests_in_flight
+          type: DEPENDENT
+          key: caddy_http_requests_in_flight
+          lifetime_type: DELETE_IMMEDIATELY
+          item_prototypes:
+            - uuid: 0ecff665bfb04d8ca2b6db059222efcd
+              name: 'count {#HANDLER} in-flight requests on {#SERVER}'
+              type: DEPENDENT
+              key: 'caddy_http_requests_in_flight[{#HANDLER}_{#SERVER}]'
+              units: req
+              description: '{#HELP}'
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - '{#METRIC}{handler="{#HANDLER}",server="{#SERVER}"}'
+                    - value
+                    - ''
+                - type: SIMPLE_CHANGE
+              master_item:
+                key: raw
+              tags:
+                - tag: handler
+                  value: '{#HANDLER}'
+                - tag: server
+                  value: '{#SERVER}'
+                - tag: type
+                  value: count
+                - tag: type
+                  value: in-flight
+                - tag: type
+                  value: request
+          master_item:
+            key: raw
+          lld_macro_paths:
+            - lld_macro: '{#HANDLER}'
+              path: '$.labels[''handler'']'
+            - lld_macro: '{#HELP}'
+              path: '$[''help'']'
+            - lld_macro: '{#METRIC}'
+              path: '$[''name'']'
+            - lld_macro: '{#SERVER}'
+              path: '$.labels[''server'']'
+          preprocessing:
+            - type: PROMETHEUS_TO_JSON
+              parameters:
+                - 'caddy_http_requests_in_flight{handler=~".*",server=~".*"}'
+        - uuid: ec1e57495fa94c3db2855c9af7cc06f3
+          name: caddy_http_requests_total
+          type: DEPENDENT
+          key: caddy_http_requests_total
+          lifetime_type: DELETE_IMMEDIATELY
+          item_prototypes:
+            - uuid: f41cbcdeb58c497fa6cf3280fc998eb4
+              name: 'count {#HANDLER} requests on {#SERVER}'
+              type: DEPENDENT
+              key: 'caddy_http_requests_total[{#HANDLER}_{#SERVER}]'
+              units: req
+              description: '{#HELP}'
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - '{#METRIC}{handler="{#HANDLER}",server="{#SERVER}"}'
+                    - value
+                    - ''
+                - type: SIMPLE_CHANGE
+              master_item:
+                key: raw
+              tags:
+                - tag: handler
+                  value: '{#HANDLER}'
+                - tag: server
+                  value: '{#SERVER}'
+                - tag: type
+                  value: count
+                - tag: type
+                  value: request
+          master_item:
+            key: raw
+          lld_macro_paths:
+            - lld_macro: '{#HANDLER}'
+              path: '$.labels[''handler'']'
+            - lld_macro: '{#HELP}'
+              path: '$[''help'']'
+            - lld_macro: '{#METRIC}'
+              path: '$[''name'']'
+            - lld_macro: '{#SERVER}'
+              path: '$.labels[''server'']'
+          preprocessing:
+            - type: PROMETHEUS_TO_JSON
+              parameters:
+                - 'caddy_http_requests_total{handler=~".*",server=~".*"}'
+        - uuid: f85412e17e8045399686f59687c1bfed
+          name: caddy_http_request_duration_seconds_bucket
+          type: DEPENDENT
+          key: caddy_http_request_duration_seconds_bucket
+          lifetime_type: DELETE_IMMEDIATELY
+          item_prototypes:
+            - uuid: 1761e446b7c34e09b63ecbb697fe3cc3
+              name: '{#HANDLER} {#METHOD} {#CODE} request on {#SERVER} - {#LE}s'
+              type: DEPENDENT
+              key: 'caddy_http_request_duration_seconds_bucket[{#CODE}_{#HANDLER}_{#METHOD}_{#SERVER}_{#LE}]'
+              units: req
+              description: 'Histogram of round-trip request durations.'
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - '{#METRIC}{code="{#CODE}",handler="{#HANDLER}",method="{#METHOD}",server="{#SERVER}",le="{#LE}"}'
+                    - value
+                    - ''
+                - type: SIMPLE_CHANGE
+                - type: DISCARD_UNCHANGED
+              master_item:
+                key: raw
+              tags:
+                - tag: 'bucket (s)'
+                  value: '{#LE}s'
+                - tag: code
+                  value: '{#CODE}'
+                - tag: handler
+                  value: '{#HANDLER}'
+                - tag: method
+                  value: '{#METHOD}'
+                - tag: server
+                  value: '{#SERVER}'
+                - tag: type
+                  value: histogram
+          master_item:
+            key: raw
+          lld_macro_paths:
+            - lld_macro: '{#CODE}'
+              path: '$.labels[''code'']'
+            - lld_macro: '{#HANDLER}'
+              path: '$.labels[''handler'']'
+            - lld_macro: '{#HELP}'
+              path: '$[''help'']'
+            - lld_macro: '{#LE}'
+              path: '$.labels[''le'']'
+            - lld_macro: '{#METHOD}'
+              path: '$.labels[''method'']'
+            - lld_macro: '{#METRIC}'
+              path: '$[''name'']'
+            - lld_macro: '{#SERVER}'
+              path: '$.labels[''server'']'
+          preprocessing:
+            - type: PROMETHEUS_TO_JSON
+              parameters:
+                - '{__name__="caddy_http_request_duration_seconds_bucket"}'
+        - uuid: c07ed97510d841ccb91ccb00fe364a47
+          name: caddy_http_request_duration_seconds_count
+          type: DEPENDENT
+          key: caddy_http_request_duration_seconds_count
+          lifetime_type: DELETE_IMMEDIATELY
+          item_prototypes:
+            - uuid: 16541f0e14984722917455718f1e6dae
+              name: 'count {#HANDLER} {#METHOD} {#CODE} request on {#SERVER}'
+              type: DEPENDENT
+              key: 'caddy_http_request_duration_seconds_count[{#CODE}_{#HANDLER}_{#METHOD}_{#SERVER}]'
+              units: req
+              description: 'Histogram of round-trip request durations.'
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - '{#METRIC}{code="{#CODE}",handler="{#HANDLER}",method="{#METHOD}",server="{#SERVER}"}'
+                    - value
+                    - ''
+                - type: SIMPLE_CHANGE
+              master_item:
+                key: raw
+              tags:
+                - tag: code
+                  value: '{#CODE}'
+                - tag: handler
+                  value: '{#HANDLER}'
+                - tag: method
+                  value: '{#METHOD}'
+                - tag: server
+                  value: '{#SERVER}'
+                - tag: type
+                  value: count
+          master_item:
+            key: raw
+          lld_macro_paths:
+            - lld_macro: '{#CODE}'
+              path: '$.labels[''code'']'
+            - lld_macro: '{#HANDLER}'
+              path: '$.labels[''handler'']'
+            - lld_macro: '{#HELP}'
+              path: '$[''help'']'
+            - lld_macro: '{#METHOD}'
+              path: '$.labels[''method'']'
+            - lld_macro: '{#METRIC}'
+              path: '$[''name'']'
+            - lld_macro: '{#SERVER}'
+              path: '$.labels[''server'']'
+          preprocessing:
+            - type: PROMETHEUS_TO_JSON
+              parameters:
+                - '{__name__="caddy_http_request_duration_seconds_count"}'
+        - uuid: 98adcddf4f3f495ea7d22d37ea56fb96
+          name: caddy_http_request_duration_seconds_sum
+          type: DEPENDENT
+          key: caddy_http_request_duration_seconds_sum
+          lifetime_type: DELETE_IMMEDIATELY
+          item_prototypes:
+            - uuid: 0a7d5d3ebc9b4900b3cefdc7121b5513
+              name: '{#HANDLER} {#METHOD} {#CODE} requests duration sum on {#SERVER}'
+              type: DEPENDENT
+              key: 'caddy_http_request_duration_seconds_sum[{#CODE}_{#HANDLER}_{#METHOD}_{#SERVER}]'
+              units: s
+              description: 'Histogram of round-trip request durations.'
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - '{#METRIC}{code="{#CODE}",handler="{#HANDLER}",method="{#METHOD}",server="{#SERVER}"}'
+                    - value
+                    - ''
+                - type: SIMPLE_CHANGE
+                - type: DISCARD_UNCHANGED
+              master_item:
+                key: raw
+              tags:
+                - tag: code
+                  value: '{#CODE}'
+                - tag: handler
+                  value: '{#HANDLER}'
+                - tag: method
+                  value: '{#METHOD}'
+                - tag: server
+                  value: '{#SERVER}'
+                - tag: type
+                  value: duration
+                - tag: type
+                  value: sum
+          master_item:
+            key: raw
+          lld_macro_paths:
+            - lld_macro: '{#CODE}'
+              path: '$.labels[''code'']'
+            - lld_macro: '{#HANDLER}'
+              path: '$.labels[''handler'']'
+            - lld_macro: '{#HELP}'
+              path: '$[''help'']'
+            - lld_macro: '{#METHOD}'
+              path: '$.labels[''method'']'
+            - lld_macro: '{#METRIC}'
+              path: '$[''name'']'
+            - lld_macro: '{#SERVER}'
+              path: '$.labels[''server'']'
+          preprocessing:
+            - type: PROMETHEUS_TO_JSON
+              parameters:
+                - '{__name__="caddy_http_request_duration_seconds_sum"}'
+        - uuid: 105c727f9c6a4f81a2eb89b32a0dbb38
+          name: caddy_http_request_errors_total
+          type: DEPENDENT
+          key: caddy_http_request_errors_total
+          lifetime_type: DELETE_IMMEDIATELY
+          item_prototypes:
+            - uuid: d0a4efce422d46c693f8c6fcbef90708
+              name: 'count {#HANDLER} requests with error on {#SERVER}'
+              type: DEPENDENT
+              key: 'caddy_http_request_errors_total[{#HANDLER}_{#SERVER}]'
+              units: req
+              description: '{#HELP}'
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - '{#METRIC}{handler="{#HANDLER}",server="{#SERVER}"}'
+                    - value
+                    - ''
+                - type: SIMPLE_CHANGE
+              master_item:
+                key: raw
+              tags:
+                - tag: handler
+                  value: '{#HANDLER}'
+                - tag: server
+                  value: '{#SERVER}'
+                - tag: type
+                  value: count
+                - tag: type
+                  value: error
+                - tag: type
+                  value: request
+          master_item:
+            key: raw
+          lld_macro_paths:
+            - lld_macro: '{#HANDLER}'
+              path: '$.labels[''handler'']'
+            - lld_macro: '{#HELP}'
+              path: '$[''help'']'
+            - lld_macro: '{#METRIC}'
+              path: '$[''name'']'
+            - lld_macro: '{#SERVER}'
+              path: '$.labels[''server'']'
+          preprocessing:
+            - type: PROMETHEUS_TO_JSON
+              parameters:
+                - 'caddy_http_request_errors_total{handler=~".*",server=~".*"}'
+        - uuid: 7522f839256a40ae8fe0039c1b2d402d
+          name: caddy_http_request_size_bytes_bucket
+          type: DEPENDENT
+          key: caddy_http_request_size_bytes_bucket
+          lifetime_type: DELETE_IMMEDIATELY
+          item_prototypes:
+            - uuid: 826580cc0ba143afac5b54ae78b9b824
+              name: '{#HANDLER} {#METHOD} {#CODE} request size on {#SERVER} - {#LE}b'
+              type: DEPENDENT
+              key: 'caddy_http_request_size_bytes_bucket[{#CODE}_{#HANDLER}_{#METHOD}_{#SERVER}_{#LE}]'
+              units: req
+              description: 'Total size of the request. Includes body.'
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - '{#METRIC}{code="{#CODE}",handler="{#HANDLER}",method="{#METHOD}",server="{#SERVER}",le="{#LE}"}'
+                    - value
+                    - ''
+                - type: SIMPLE_CHANGE
+                - type: DISCARD_UNCHANGED
+              master_item:
+                key: raw
+              tags:
+                - tag: 'bucket (b)'
+                  value: '{#LE}b'
+                - tag: code
+                  value: '{#CODE}'
+                - tag: handler
+                  value: '{#HANDLER}'
+                - tag: method
+                  value: '{#METHOD}'
+                - tag: server
+                  value: '{#SERVER}'
+                - tag: type
+                  value: histogram
+                - tag: type
+                  value: size
+          master_item:
+            key: raw
+          lld_macro_paths:
+            - lld_macro: '{#CODE}'
+              path: '$.labels[''code'']'
+            - lld_macro: '{#HANDLER}'
+              path: '$.labels[''handler'']'
+            - lld_macro: '{#HELP}'
+              path: '$[''help'']'
+            - lld_macro: '{#LE}'
+              path: '$.labels[''le'']'
+            - lld_macro: '{#METHOD}'
+              path: '$.labels[''method'']'
+            - lld_macro: '{#METRIC}'
+              path: '$[''name'']'
+            - lld_macro: '{#SERVER}'
+              path: '$.labels[''server'']'
+          preprocessing:
+            - type: PROMETHEUS_TO_JSON
+              parameters:
+                - '{__name__="caddy_http_request_size_bytes_bucket"}'
+        - uuid: 40e46368ffa845dea885b7db54ff6693
+          name: caddy_http_request_size_bytes_sum
+          type: DEPENDENT
+          key: caddy_http_request_size_bytes_sum
+          lifetime_type: DELETE_IMMEDIATELY
+          item_prototypes:
+            - uuid: e191eade4d2e4f9fa01ece8c15ece9a8
+              name: '{#HANDLER} {#METHOD} {#CODE} request size on {#SERVER}'
+              type: DEPENDENT
+              key: 'caddy_http_request_size_bytes_sum[{#CODE}_{#HANDLER}_{#METHOD}_{#SERVER}]'
+              units: b
+              description: 'Total size of the request. Includes body.'
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - '{#METRIC}{code="{#CODE}",handler="{#HANDLER}",method="{#METHOD}",server="{#SERVER}"}'
+                    - value
+                    - ''
+                - type: SIMPLE_CHANGE
+                - type: DISCARD_UNCHANGED
+              master_item:
+                key: raw
+              tags:
+                - tag: code
+                  value: '{#CODE}'
+                - tag: handler
+                  value: '{#HANDLER}'
+                - tag: method
+                  value: '{#METHOD}'
+                - tag: server
+                  value: '{#SERVER}'
+                - tag: type
+                  value: size
+                - tag: type
+                  value: sum
+          master_item:
+            key: raw
+          lld_macro_paths:
+            - lld_macro: '{#CODE}'
+              path: '$.labels[''code'']'
+            - lld_macro: '{#HANDLER}'
+              path: '$.labels[''handler'']'
+            - lld_macro: '{#HELP}'
+              path: '$[''help'']'
+            - lld_macro: '{#METHOD}'
+              path: '$.labels[''method'']'
+            - lld_macro: '{#METRIC}'
+              path: '$[''name'']'
+            - lld_macro: '{#SERVER}'
+              path: '$.labels[''server'']'
+          preprocessing:
+            - type: PROMETHEUS_TO_JSON
+              parameters:
+                - '{__name__="caddy_http_request_size_bytes_sum"}'
+        - uuid: d226294be9194b1aaff893d69f9bc62e
+          name: caddy_http_response_duration_seconds_bucket
+          type: DEPENDENT
+          key: caddy_http_response_duration_seconds_bucket
+          lifetime_type: DELETE_IMMEDIATELY
+          item_prototypes:
+            - uuid: b2e68abf736744e3b507d45879f38649
+              name: '{#HANDLER} {#METHOD} {#CODE} response on {#SERVER} - {#LE}s'
+              type: DEPENDENT
+              key: 'caddy_http_response_duration_seconds_bucket[{#CODE}_{#HANDLER}_{#METHOD}_{#SERVER}_{#LE}]'
+              units: req
+              description: 'Histogram of times to first byte in response bodies.'
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - '{#METRIC}{code="{#CODE}",handler="{#HANDLER}",method="{#METHOD}",server="{#SERVER}",le="{#LE}"}'
+                    - value
+                    - ''
+                - type: SIMPLE_CHANGE
+                - type: DISCARD_UNCHANGED
+              master_item:
+                key: raw
+              tags:
+                - tag: 'bucket (s)'
+                  value: '{#LE}s'
+                - tag: code
+                  value: '{#CODE}'
+                - tag: handler
+                  value: '{#HANDLER}'
+                - tag: method
+                  value: '{#METHOD}'
+                - tag: server
+                  value: '{#SERVER}'
+                - tag: type
+                  value: histogram
+          master_item:
+            key: raw
+          lld_macro_paths:
+            - lld_macro: '{#CODE}'
+              path: '$.labels[''code'']'
+            - lld_macro: '{#HANDLER}'
+              path: '$.labels[''handler'']'
+            - lld_macro: '{#HELP}'
+              path: '$[''help'']'
+            - lld_macro: '{#LE}'
+              path: '$.labels[''le'']'
+            - lld_macro: '{#METHOD}'
+              path: '$.labels[''method'']'
+            - lld_macro: '{#METRIC}'
+              path: '$[''name'']'
+            - lld_macro: '{#SERVER}'
+              path: '$.labels[''server'']'
+          preprocessing:
+            - type: PROMETHEUS_TO_JSON
+              parameters:
+                - '{__name__="caddy_http_response_duration_seconds_bucket"}'
+        - uuid: 385ec8a5c0dd41b791e843ec80cf6d85
+          name: caddy_http_response_duration_seconds_sum
+          type: DEPENDENT
+          key: caddy_http_response_duration_seconds_sum
+          lifetime_type: DELETE_IMMEDIATELY
+          description: 'A histogram of time-to-first-byte for responses.'
+          item_prototypes:
+            - uuid: d7d34c5213c84e2c93023c4aa9379bc1
+              name: '{#HANDLER} {#METHOD} {#CODE} response sum on {#SERVER}'
+              type: DEPENDENT
+              key: 'caddy_http_response_duration_seconds_sum[{#CODE}_{#HANDLER}_{#METHOD}_{#SERVER}]'
+              units: s
+              description: 'Histogram sum of times to first byte in response bodies.'
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - '{#METRIC}{code="{#CODE}",handler="{#HANDLER}",method="{#METHOD}",server="{#SERVER}"}'
+                    - value
+                    - ''
+                - type: SIMPLE_CHANGE
+                - type: DISCARD_UNCHANGED
+              master_item:
+                key: raw
+              tags:
+                - tag: code
+                  value: '{#CODE}'
+                - tag: handler
+                  value: '{#HANDLER}'
+                - tag: method
+                  value: '{#METHOD}'
+                - tag: server
+                  value: '{#SERVER}'
+                - tag: type
+                  value: response
+                - tag: type
+                  value: sum
+          master_item:
+            key: raw
+          lld_macro_paths:
+            - lld_macro: '{#CODE}'
+              path: '$.labels[''code'']'
+            - lld_macro: '{#HANDLER}'
+              path: '$.labels[''handler'']'
+            - lld_macro: '{#HELP}'
+              path: '$[''help'']'
+            - lld_macro: '{#METHOD}'
+              path: '$.labels[''method'']'
+            - lld_macro: '{#METRIC}'
+              path: '$[''name'']'
+            - lld_macro: '{#SERVER}'
+              path: '$.labels[''server'']'
+          preprocessing:
+            - type: PROMETHEUS_TO_JSON
+              parameters:
+                - '{__name__="caddy_http_response_duration_seconds_sum"}'
+        - uuid: 5fef4ea1491d410eadf4b02de6e84a0c
+          name: caddy_http_response_size_bytes_bucket
+          type: DEPENDENT
+          key: caddy_http_response_size_bytes_bucket
+          lifetime_type: DELETE_IMMEDIATELY
+          item_prototypes:
+            - uuid: f9b54020118d47c588b56a93eb423149
+              name: '{#HANDLER} {#METHOD} {#CODE} response size on {#SERVER} - {#LE}b'
+              type: DEPENDENT
+              key: 'caddy_http_response_size_bytes_bucket[{#CODE}_{#HANDLER}_{#METHOD}_{#SERVER}_{#LE}]'
+              units: req
+              description: 'Size of the returned response.'
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - '{#METRIC}{code="{#CODE}",handler="{#HANDLER}",method="{#METHOD}",server="{#SERVER}",le="{#LE}"}'
+                    - value
+                    - ''
+                - type: SIMPLE_CHANGE
+                - type: DISCARD_UNCHANGED
+              master_item:
+                key: raw
+              tags:
+                - tag: 'bucket (b)'
+                  value: '{#LE}b'
+                - tag: code
+                  value: '{#CODE}'
+                - tag: handler
+                  value: '{#HANDLER}'
+                - tag: method
+                  value: '{#METHOD}'
+                - tag: server
+                  value: '{#SERVER}'
+                - tag: type
+                  value: histogram
+                - tag: type
+                  value: size
+          master_item:
+            key: raw
+          lld_macro_paths:
+            - lld_macro: '{#CODE}'
+              path: '$.labels[''code'']'
+            - lld_macro: '{#HANDLER}'
+              path: '$.labels[''handler'']'
+            - lld_macro: '{#HELP}'
+              path: '$[''help'']'
+            - lld_macro: '{#LE}'
+              path: '$.labels[''le'']'
+            - lld_macro: '{#METHOD}'
+              path: '$.labels[''method'']'
+            - lld_macro: '{#METRIC}'
+              path: '$[''name'']'
+            - lld_macro: '{#SERVER}'
+              path: '$.labels[''server'']'
+          preprocessing:
+            - type: PROMETHEUS_TO_JSON
+              parameters:
+                - '{__name__="caddy_http_response_size_bytes_bucket"}'
+        - uuid: 829958959ffd407da96430321bcaef6a
+          name: caddy_http_response_size_bytes_sum
+          type: DEPENDENT
+          key: caddy_http_response_size_bytes_sum
+          lifetime_type: DELETE_IMMEDIATELY
+          description: 'A histogram of the size of the returned response body.'
+          item_prototypes:
+            - uuid: 52c6768fd487490f987868e1a0877ea1
+              name: '{#HANDLER} {#METHOD} {#CODE} response size sum on {#SERVER}'
+              type: DEPENDENT
+              key: 'caddy_http_response_size_bytes_sum[{#CODE}_{#HANDLER}_{#METHOD}_{#SERVER}]'
+              units: b
+              description: 'Size of the returned response sum.'
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - '{#METRIC}{code="{#CODE}",handler="{#HANDLER}",method="{#METHOD}",server="{#SERVER}"}'
+                    - value
+                    - ''
+                - type: SIMPLE_CHANGE
+                - type: DISCARD_UNCHANGED
+              master_item:
+                key: raw
+              tags:
+                - tag: code
+                  value: '{#CODE}'
+                - tag: handler
+                  value: '{#HANDLER}'
+                - tag: method
+                  value: '{#METHOD}'
+                - tag: server
+                  value: '{#SERVER}'
+                - tag: type
+                  value: response
+                - tag: type
+                  value: size
+                - tag: type
+                  value: sum
+          master_item:
+            key: raw
+          lld_macro_paths:
+            - lld_macro: '{#CODE}'
+              path: '$.labels[''code'']'
+            - lld_macro: '{#HANDLER}'
+              path: '$.labels[''handler'']'
+            - lld_macro: '{#HELP}'
+              path: '$[''help'']'
+            - lld_macro: '{#METHOD}'
+              path: '$.labels[''method'']'
+            - lld_macro: '{#METRIC}'
+              path: '$[''name'']'
+            - lld_macro: '{#SERVER}'
+              path: '$.labels[''server'']'
+          preprocessing:
+            - type: PROMETHEUS_TO_JSON
+              parameters:
+                - '{__name__="caddy_http_response_size_bytes_sum"}'
+        - uuid: 22f10afb6eea4188b2b7812ffdae5c7e
+          name: caddy_reverse_proxy_upstreams_healthy
+          type: DEPENDENT
+          key: caddy_reverse_proxy_upstreams_healthy
+          lifetime_type: DELETE_IMMEDIATELY
+          description: 'Health status of reverse proxy upstreams.'
+          item_prototypes:
+            - uuid: ba647ce565314470a0886f734a3496fd
+              name: 'upstream {#UPSTREAM} health'
+              type: DEPENDENT
+              key: 'caddy_reverse_proxy_upstreams_healthy[{#UPSTREAM}]'
+              trends: '0'
+              description: '{#HELP}'
+              valuemap:
+                name: health
+              preprocessing:
+                - type: PROMETHEUS_PATTERN
+                  parameters:
+                    - '{#METRIC}{upstream="{#UPSTREAM}"}'
+                    - value
+                    - ''
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - '3600'
+              master_item:
+                key: raw
+              tags:
+                - tag: type
+                  value: health
+                - tag: type
+                  value: reverse_proxy
+                - tag: upstream
+                  value: '{#UPSTREAM}'
+          master_item:
+            key: raw
+          lld_macro_paths:
+            - lld_macro: '{#HELP}'
+              path: '$[''help'']'
+            - lld_macro: '{#METRIC}'
+              path: '$[''name'']'
+            - lld_macro: '{#UPSTREAM}'
+              path: '$.labels[''upstream'']'
+          preprocessing:
+            - type: PROMETHEUS_TO_JSON
+              parameters:
+                - 'caddy_reverse_proxy_upstreams_healthy{upstream=~".*"}'
+      macros:
+        - macro: '{$CADDY.HOST}'
+          value: 127.0.0.1
+          description: 'Caddy host IP'
+        - macro: '{$CADDY.PATH}'
+          value: /metrics
+          description: 'Metrics path'
+        - macro: '{$CADDY.PORT}'
+          value: '8080'
+          description: 'Metrics port'
+      valuemaps:
+        - uuid: 8a47b8935ab24d7786d99c97a657a28d
+          name: health
+          mappings:
+            - value: '1'
+              newvalue: healthy
+            - value: '0'
+              newvalue: unhealthy
