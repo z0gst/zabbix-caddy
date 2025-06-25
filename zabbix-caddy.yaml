@@ -1,9 +1,14 @@
 zabbix_export:
   version: '7.2'
+  template_groups:
+    - uuid: 5a4d9a1994144fc2a823952cf2a4a42a
+      name: Templates/Applications
   templates:
     - uuid: 4e3d9a1994144fc2a823952cf2a4a42a
       template: Caddy
       name: Caddy
+      groups:
+        - name: 'Templates/Applications'
       items:
         - uuid: 08844487cb4b4616878d512a2d95df2a
           name: go_goroutines
